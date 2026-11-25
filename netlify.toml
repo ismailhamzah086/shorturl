@@ -1,0 +1,14 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# Urutan penting: aturan khusus dulu, /:slug terakhir.
+[[redirects]]
+  from = "/api/shorten"
+  to = "/.netlify/functions/shorten"
+  status = 200
+
+[[redirects]]
+  from = "/:slug"
+  to = "/.netlify/functions/go?slug=:slug"
+  status = 200
