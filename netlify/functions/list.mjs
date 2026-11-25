@@ -11,7 +11,7 @@ export default async (req) => {
   if (!adminPassword) return json({ error: "ADMIN_PASSWORD belum diatur di Netlify" }, 500);
   if (req.headers.get("x-password") !== adminPassword) return json({ error: "Kata sandi salah" }, 401);
 
-  const store = getStore("links");
+  const store = getStore({ name: "links", consistency: "strong" });
   const { blobs } = await store.list();
   const origin = new URL(req.url).origin;
 
