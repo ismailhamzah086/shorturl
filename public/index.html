@@ -10,44 +10,129 @@
     :root { --bg:#12151c; --card:#1c212c; --text:#eef1f7; --muted:#9aa4b8; --accent:#6f93ff; --border:#2e3646; }
   }
   * { box-sizing: border-box; }
-  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px;
-         background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; }
-  main { width:100%; max-width:520px; background:var(--card); padding:28px; border-radius:16px; border:1px solid var(--border); }
+  body { margin:0; min-height:100vh; padding:24px 16px; background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; }
+  main { width:100%; max-width:640px; margin:0 auto; display:grid; gap:16px; }
+  section { background:var(--card); padding:24px; border-radius:16px; border:1px solid var(--border); }
   h1 { margin:0 0 4px; font-size:1.5rem; }
-  p.sub { margin:0 0 20px; color:var(--muted); }
+  h2 { margin:0 0 12px; font-size:1.1rem; }
+  p.sub { margin:0 0 12px; color:var(--muted); }
   label { display:block; font-size:.85rem; color:var(--muted); margin:12px 0 4px; }
   input { width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--border);
           background:transparent; color:var(--text); font-size:1rem; }
-  button { margin-top:16px; width:100%; padding:12px; border:0; border-radius:10px;
+  button { margin-top:14px; width:100%; padding:12px; border:0; border-radius:10px;
            background:var(--accent); color:#fff; font-size:1rem; cursor:pointer; }
-  #result { margin-top:18px; display:none; padding:12px; border-radius:10px; border:1px solid var(--border); }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); padding:8px; margin-top:10px; }
+  #result { margin-top:16px; display:none; padding:12px; border-radius:10px; border:1px solid var(--border); }
   #result a { color:var(--accent); word-break:break-all; font-weight:600; }
-  #result button { margin-top:10px; padding:8px; background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  #error { color:#e5484d; margin-top:12px; min-height:1em; }
+  .hidden { display:none !important; }
+  #login { max-width:380px; margin:10vh auto 0; }
+  .top { display:flex; justify-content:space-between; align-items:center; }
+  .top button { width:auto; margin:0; padding:6px 12px; }
+  .error { color:#e5484d; margin-top:10px; min-height:1em; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); vertical-align:top; }
+  td a { color:var(--accent); }
+  td.url { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
 </style>
 </head>
 <body>
-<main>
-  <h1>Perpendek Tautan</h1>
-  <p class="sub">Tempel tautan panjang, dapatkan yang singkat.</p>
-  <label for="url">Tautan panjang</label>
-  <input id="url" type="url" placeholder="https://contoh.com/artikel/yang/sangat/panjang">
-  <label for="alias">Alias kustom (opsional)</label>
-  <input id="alias" type="text" placeholder="promo-natal">
-  <button id="go">Perpendek</button>
-  <div id="error"></div>
-  <div id="result">
-    <a id="short" target="_blank" rel="noopener"></a>
-    <button id="copy">Salin</button>
-  </div>
+<main id="login" class="hidden">
+  <section>
+    <h1>Masuk</h1>
+    <p class="sub">Masukkan kata sandi untuk melanjutkan.</p>
+    <label for="password">Kata sandi</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button id="loginBtn">Masuk</button>
+    <div id="loginError" class="error"></div>
+  </section>
+</main>
+
+<main id="app" class="hidden">
+  <section>
+    <div class="top">
+      <h1>Perpendek Tautan</h1>
+      <button id="logout" class="ghost">Keluar</button>
+    </div>
+    <p class="sub">Tempel tautan panjang, dapatkan yang singkat.</p>
+    <label for="url">Tautan panjang</label>
+    <input id="url" type="url" placeholder="https://contoh.com/artikel/yang/sangat/panjang">
+    <label for="alias">Alias kustom (opsional)</label>
+    <input id="alias" type="text" placeholder="promo-natal">
+    <button id="go">Perpendek</button>
+    <div id="error" class="error"></div>
+    <div id="result">
+      <a id="short" target="_blank" rel="noopener"></a>
+      <button id="copy" class="ghost">Salin</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Riwayat tautan</h2>
+    <button id="load" class="ghost">Muat riwayat</button>
+    <div id="listError" class="error"></div>
+    <div class="scroll"><table id="table" style="display:none">
+      <thead><tr><th>Tautan pendek</th><th>Tujuan</th><th>Klik</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
+let password = '';
+try { password = sessionStorage.getItem('pw') || ''; } catch {}
+const pw = () => password;
+
+function show(loggedIn) {
+  $('login').classList.toggle('hidden', loggedIn);
+  $('app').classList.toggle('hidden', !loggedIn);
+}
+
+async function login(p) {
+  const res = await fetch('/api/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+}
+
+$('loginBtn').onclick = async () => {
+  $('loginError').textContent = '';
+  try {
+    await login($('password').value);
+    password = $('password').value;
+    try { sessionStorage.setItem('pw', password); } catch {}
+    $('password').value = '';
+    show(true);
+    $('load').click();
+  } catch (e) { $('loginError').textContent = e.message; }
+};
+$('password').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+
+$('logout').onclick = () => {
+  password = '';
+  try { sessionStorage.removeItem('pw'); } catch {}
+  $('rows').innerHTML = ''; $('table').style.display = 'none';
+  show(false);
+};
+
+// Saat halaman dibuka: cek apakah sesi masih valid
+(async () => {
+  if (password) {
+    try { await login(password); show(true); $('load').click(); return; } catch {}
+    try { sessionStorage.removeItem('pw'); } catch {}
+    password = '';
+  }
+  show(false);
+})();
+
 $('go').onclick = async () => {
   $('error').textContent = ''; $('result').style.display = 'none';
   try {
     const res = await fetch('/api/shorten', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-password': pw() },
       body: JSON.stringify({ url: $('url').value.trim(), alias: $('alias').value })
     });
     const data = await res.json();
@@ -56,10 +141,31 @@ $('go').onclick = async () => {
     $('result').style.display = 'block';
   } catch (e) { $('error').textContent = e.message; }
 };
+
 $('copy').onclick = async () => {
   await navigator.clipboard.writeText($('short').textContent);
   $('copy').textContent = 'Tersalin ✓';
   setTimeout(() => $('copy').textContent = 'Salin', 1500);
+};
+
+$('load').onclick = async () => {
+  $('listError').textContent = '';
+  try {
+    const res = await fetch('/api/list', { headers: { 'x-password': pw() } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const rows = $('rows'); rows.innerHTML = '';
+    data.links.forEach(l => {
+      const tr = document.createElement('tr');
+      const a = document.createElement('a'); a.href = l.shortUrl; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '/' + l.slug;
+      const td1 = document.createElement('td'); td1.appendChild(a);
+      const td2 = document.createElement('td'); td2.className = 'url'; td2.textContent = l.url; td2.title = l.url;
+      const td3 = document.createElement('td'); td3.textContent = l.clicks;
+      tr.append(td1, td2, td3); rows.appendChild(tr);
+    });
+    $('table').style.display = data.links.length ? 'table' : 'none';
+    if (!data.links.length) $('listError').textContent = 'Belum ada tautan.';
+  } catch (e) { $('listError').textContent = e.message; }
 };
 </script>
 </body>
