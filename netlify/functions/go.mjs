@@ -1,9 +1,18 @@
 import { getStore } from "@netlify/blobs";
 
 export default async (req) => {
-  const slug = new URL(req.url).searchParams.get("slug");
-  const store = getStore("links");
+  const url = new URL(req.url);
+
+  // Ambil slug dari ?slug=... atau, kalau tidak ada, dari bagian akhir path
+  let slug = url.searchParams.get("slug");
+  if (!slug) {
+    const last = url.pathname.split("/").filter(Boolean).pop() || "";
+    try { slug = decodeURIComponent(last); } catch { slug = last; }
+  }
+
+  const store = getStore({ name: "links", consistency: "strong" });
   const entry = slug ? await store.get(slug, { type: "json" }) : null;
+  console.log("redirect lookup:", JSON.stringify({ slug, found: !!entry, path: url.pathname }));
 
   if (!entry) {
     return new Response("<h1>404</h1><p>Tautan tidak ditemukan.</p>", {
