@@ -23,6 +23,10 @@ const randomSlug = (len = 6) =>
 export default async (req) => {
   if (req.method !== "POST") return json({ error: "Gunakan metode POST" }, 405);
 
+  const adminPassword = Netlify.env.get("ADMIN_PASSWORD");
+  if (!adminPassword) return json({ error: "ADMIN_PASSWORD belum diatur di Netlify" }, 500);
+  if (req.headers.get("x-password") !== adminPassword) return json({ error: "Kata sandi salah" }, 401);
+
   let body;
   try {
     body = await req.json();
@@ -35,7 +39,7 @@ export default async (req) => {
     return json({ error: "URL tidak valid (harus diawali http:// atau https://)" }, 400);
   }
 
-  const store = getStore("links");
+  const store = getStore({ name: "links", consistency: "strong" });
   let slug = (alias || "").trim();
 
   if (slug) {
